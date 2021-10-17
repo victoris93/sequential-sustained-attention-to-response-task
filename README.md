@@ -1,4 +1,4 @@
-sustained-attention-to-response-task
+sequential-sustained-attention-to-response-task
 =============
 
 A Python version of the Sustained Attention to Response Task (SART) as detailed by Robertson et al. (1997). Requires [PsychoPy](http://www.psychopy.org/).
