@@ -93,55 +93,20 @@ SOFTWARE.
 import time
 import copy
 import random
-
 from psychopy import visual, core, data, event, gui
+import numpy as np
+import sys
+import os
 
-def sart(monitor="testMonitor", blocks=1, reps=5, omitNum=3, practice=True, 
-         path="", fixed=False):
-    """ SART Task.
-    
-    monitor......The monitor to be used for the task.
-    blocks.......The number of blocks to be presented.
-    reps.........The number of repetitions to be presented per block.  Each
-                 repetition equals 45 trials (5 font sizes X 9 numbers).
-    omitNum......The number participants should withold pressing a key on.
-    practice.....If the task should display 18 practice trials that contain 
-                 feedback on accuracy.
-    path.........The directory in which the output file will be placed. Defaults
-                 to the directory in which the task is placed.
-    fixed........Whether or not the numbers should be presented in a fixed
-                 instead of random order (e.g., 1, 2, 3, 4, 5, 6, 7, 8 ,9,
-                 1, 2, 3, 4, 5, 6, 7, 8, 9...).
-    """
-    partInfo = part_info_gui()
-    mainResultList = []
-    fileName = "SART_" + str(partInfo[0]) + ".txt"
-    outFile = open(path + fileName, "w")
-    win = visual.Window(fullscr=True, color="black", units='cm',
-                        monitor=monitor)
-    sart_init_inst(win, omitNum)
-    if practice == True:
-        sart_prac_inst(win, omitNum)
-        mainResultList.extend(sart_block(win, fb=True, omitNum=omitNum, 
-                              reps=1, bNum=0, fixed=fixed))
-    sart_act_task_inst(win)
-    for block in range(1, blocks + 1):
-        mainResultList.extend(sart_block(win, fb=False, omitNum=omitNum,
-                              reps=reps, bNum=block, fixed=fixed))
-        if (blocks > 1) and (block != blocks):
-            sart_break_inst(win)
-    outFile.write("part_num\tpart_gender\tpart_age\tpart_school_yr\t" +
-                  "part_normal_vision\texp_initials\tblock_num\ttrial_num\t" +
-                  "number\tomit_num\tresp_acc\tresp_rt\ttrial_start_time_s" +
-                  "\ttrial_end_time_s\tmean_trial_time_s\ttiming_function\n")
-    for line in mainResultList:
-        for item in partInfo:
-            outFile.write(str(item) + "\t")
-        for col in line:
-            outFile.write(str(col) + "\t")
-        outFile.write("time.clock()\n")
-    outFile.close()
-    
+stimcolor = "white"
+probe_keys=["1","2", "3", "4", "5"]
+quit_button="escape"
+
+min_probe_interval=30 # in s
+max_probe_interval=60 # in s
+num_probes = 5
+ISI = 0.9
+
 def part_info_gui():
     info = gui.Dlg(title='SART')
     info.addText('Participant Info')
@@ -167,6 +132,55 @@ def part_info_gui():
     else:
         sys.exit()
     return infoData
+
+partInfo = part_info_gui()
+
+win = visual.Window(fullscr=True, color="black", units='cm', monitor="testMonitor")
+
+def sart(win = win, monitor="testMonitor", blocks=1, reps=1, omitNum=3, practice=False, 
+         path="", fixed=True, partInfo = partInfo):
+    """ SART Task.
+    
+    monitor......The monitor to be used for the task.
+    blocks.......The number of blocks to be presented.
+    reps.........The number of repetitions to be presented per block.  Each
+                 repetition equals 45 trials (5 font sizes X 9 numbers).
+    omitNum......The number participants should withold pressing a key on.
+    practice.....If the task should display 18 practice trials that contain 
+                 feedback on accuracy.
+    path.........The directory in which the output file will be placed. Defaults
+                 to the directory in which the task is placed.
+    fixed........Whether or not the numbers should be presented in a fixed
+                 instead of random order (e.g., 1, 2, 3, 4, 5, 6, 7, 8 ,9,
+                 1, 2, 3, 4, 5, 6, 7, 8, 9...).
+    """
+    
+    mainResultList = []
+    fileName = "SART_" + str(partInfo[0]) + ".csv"
+    outFile = open(path + fileName, "w")
+    sart_init_inst(win, omitNum)
+    if practice == True:
+        sart_prac_inst(win, omitNum)
+        mainResultList.extend(sart_block(win, fb=True, omitNum=omitNum, 
+                              reps=1, bNum=0, fixed=fixed, num_probes = 3, min_probe_interval = 30, max_probe_interval = 60))
+    sart_act_task_inst(win)
+    
+    for block in range(1, blocks + 1):
+        mainResultList.extend(sart_block(win, fb=False, omitNum=omitNum,
+                              reps=reps, bNum=block, fixed=fixed, num_probes = 3, min_probe_interval = 30, max_probe_interval = 60))
+        if (blocks > 1) and (block != blocks):
+            sart_break_inst(win)
+    outFile.write("part_num\tpart_gender\tpart_age\tpart_school_yr\t" +
+                  "part_normal_vision\texp_initials\tblock_num\ttrial_num\t" +
+                  "number\tomit_num\tresp_acc\tresp_rt\ttrial_start_time_s" +
+                  "\ttrial_end_time_s\tmean_trial_time_s\ttiming_function\n")
+    for line in mainResultList:
+        for item in partInfo:
+            outFile.write(str(item) + "\t")
+        for col in line:
+            outFile.write(str(col) + "\t")
+        outFile.write("time.process_time()\n")
+    outFile.close()
     
 def sart_init_inst(win, omitNum):
     inst = visual.TextStim(win, text=("In this task, a series of numbers will" +
@@ -225,9 +239,9 @@ def sart_break_inst(win):
                                             " trials.\n\nPress the b key " +
                                             "bar to begin."),
                                  color="white", height=0.7, pos=(0, 0))
-        startTime = time.clock()
+        startTime = time.process_time()
         while 1:
-            eTime = time.clock() - startTime
+            eTime = time.process_time() - startTime
             inst.draw()
             win.flip()
             if eTime > 60:
@@ -237,7 +251,7 @@ def sart_break_inst(win):
             nbInst.draw()
             win.flip()
 
-def sart_block(win, fb, omitNum, reps, bNum, fixed):
+def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interval, max_probe_interval):
     mouse = event.Mouse(visible=0)
     xStim = visual.TextStim(win, text="X", height=3.35, color="white", 
                             pos=(0, 0))
@@ -267,17 +281,62 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed):
         trials = data.TrialHandler(seqList, nReps=reps, method='sequential')
     else:
         trials = data.TrialHandler(list, nReps=reps, method='random')
+        
     clock = core.Clock()
     tNum = 0
     resultList =[]
-    startTime = time.clock()
+    startTime = time.process_time()
+    ntrials = 45 * reps
+    ntrial = 1
+    probe_times=np.array(np.random.randint(min_probe_interval, max_probe_interval +1, num_probes-1)/0.9, dtype=np.int)
+    probe_trials=np.cumsum(np.array(probe_times/sum(probe_times)*(ntrials-5/0.75), dtype=np.int))
+    probe_trials=np.append(probe_trials, 255)
+    fileName = "SART_probes_" + str(partInfo[0]) + ".csv"
+    path = os.getcwd() + "/"
+    probeData = path + fileName
+    with open(probeData, "w") as probeDataFile:
+        probeDataFile.write("part_num, part_gender, part_age, part_school_yr, part_normal_vision, exp_initials, probe_type, preceding_trial_num, response, rt\n")
+    probeDataFile=open(probeData, "a")
     for trial in trials:
+        if ntrial in probe_trials:
+            probe_clock = core.Clock()
+            response_task=show_probe(probe_task)
+            logtext="{part_num}, {part_gender}, {part_age}, {part_school_yr}, {part_normal_vision}, {exp_initials}, {probe_type}, {preceding_trial_num}, {response}, {rt}\n".format( \
+            part_num= partInfo[0], \
+            part_gender=partInfo[1], \
+            part_age=partInfo[2], \
+            part_school_yr=partInfo[3], \
+            part_normal_vision=partInfo[4], \
+            exp_initials=partInfo[5], \
+            probe_type = "task",\
+            preceding_trial_num = ntrial, \
+            response = response_task, \
+            rt = probe_clock.getTime())
+            probeDataFile.write(logtext)
+            probeDataFile.flush()
+            probe_clock.reset()
+            response_confidence=show_probe(probe_confidence)
+            print(response_confidence)
+            logtext="{part_num}, {part_gender}, {part_age}, {part_school_yr}, {part_normal_vision}, {exp_initials}, {probe_type},{preceding_trial_num}, {response}, {rt}\n".format( \
+            part_num= partInfo[0], \
+            part_gender=partInfo[1], \
+            part_age=partInfo[2], \
+            part_school_yr=partInfo[3], \
+            part_normal_vision=partInfo[4], \
+            exp_initials=partInfo[5], \
+            probe_type = "confidence",\
+            preceding_trial_num = ntrial, \
+            response = response_confidence, \
+            rt = probe_clock.getTime())
+            probeDataFile.write(logtext)
+            probeDataFile.flush()
+        ntrial += 1
         tNum += 1
         resultList.append(sart_trial(win, fb, omitNum, xStim, circleStim,
                               numStim, correctStim, incorrectStim, clock, 
                               trials.thisTrial['fontSize'], 
                               trials.thisTrial['number'], tNum, bNum, mouse))
-    endTime = time.clock()
+    endTime = time.process_time()
     totalTime = endTime - startTime
     for row in resultList:
         row.append(totalTime/tNum)
@@ -286,10 +345,10 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed):
            str(1.15*1000) + " ms\nActual Time Per Trial: " +
            str((totalTime/tNum)*1000) + " ms\n\n")
     return resultList
-    
+
 def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim, 
                incorrectStim, clock, fontSize, number, tNum, bNum, mouse):
-    startTime = time.clock()
+    startTime = time.process_time()
     mouse.setVisible(0)
     respRt = "NA"
     numStim.setHeight(fontSize)
@@ -297,15 +356,15 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
     numStim.draw()
     event.clearEvents()
     clock.reset()
-    stimStartTime = time.clock()
+    stimStartTime = time.process_time()
     win.flip()
     xStim.draw()
     circleStim.draw()
-    waitTime = .25 - (time.clock() - stimStartTime)
+    waitTime = .25 - (time.process_time() - stimStartTime)
     core.wait(waitTime, hogCPUperiod=waitTime)
-    maskStartTime = time.clock()
+    maskStartTime = time.process_time()
     win.flip()
-    waitTime = .90 - (time.clock() - maskStartTime)
+    waitTime = 0.9 - (time.process_time() - maskStartTime)
     core.wait(waitTime, hogCPUperiod=waitTime)
     win.flip()
     allKeys = event.getKeys(timeStamped=clock)
@@ -326,15 +385,100 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
             incorrectStim.draw()
         else:
             correctStim.draw()
-        stimStartTime = time.clock()
+        stimStartTime = time.process_time()
         win.flip()
-        waitTime = .90 - (time.clock() - stimStartTime) 
+        waitTime = .90 - (time.process_time() - stimStartTime) 
         core.wait(waitTime, hogCPUperiod=waitTime)
         win.flip()
-    endTime = time.clock()
+    endTime = time.process_time()
     totalTime = endTime - startTime
     return [str(bNum), str(tNum), str(number), str(omitNum), str(respAcc),
             str(respRt), str(startTime), str(endTime)]
+
+def show_probe(probe):
+	probe.show_arrow=False
+	while(1):
+		probe.draw()
+		win.flip()
+		keys=event.getKeys()
+		if len(set(keys) & set(probe_keys))>0:
+			k=int(list(set(keys) & set(probe_keys))[0])-1
+			probe.set_arrow(k)
+			probe.draw()
+			win.flip()
+			time.sleep(1.0)
+			probe.show_arrow=False
+			break
+		elif quit_button in keys:
+			sys.exit()
+	return probe.current_pos
+
+class LikertScale:
+	def __init__(self, win, nposs=5, instruction_text=u"", scale_labels=[]):
+		start,end=-.5, .5
+		ypad=.05
+		instru = visual.TextStim(win=win, ori=0, name='instru',units='norm',
+			text=instruction_text,    font='Arial',
+			pos=[0, 0.5], height=0.07, wrapWidth=None,
+			color='white', colorSpace='rgb', opacity=1,
+			depth=0.0)
+		self.nposs=nposs
+		self.show_arrow=False
+		line=visual.Line(win, start=(start, 0), end=(end,0), units='norm', lineColor=stimcolor, lineWidth=5)
+		ticks=start+np.arange(0,nposs)*(end-start)/float(nposs-1)
+		poss=[visual.Line(win, start=(tick, -ypad), end=(tick,ypad), units='norm', lineColor=stimcolor,
+						  lineWidth=3) for tick in ticks]
+		lab=[visual.TextStim(win, pos=(ticks[i], -.1), units='norm', text=scale_labels[i], height=.05, color=stimcolor) for i in range(len(scale_labels))]
+
+		self.arrow_v=0.4*np.array([ [0,0], [.2, .2], [.1, .2], [.1, .5], [-.1, .5], [-.1, .2], [-.2, .2], [0, 0]])
+		self.arrow_v[:,1]+=ypad+.01
+		self.ticks=ticks
+		self.arrow=visual.ShapeStim(win, vertices=self.arrow_v, fillColor=stimcolor, units='norm')
+
+		self.init_random()
+
+		self.elements=[line]+poss+lab+[instru]
+
+	def init_random(self):
+		## initialize to either 0 or nposs-1
+		initial_pos=np.random.choice([0,self.nposs-1])
+		self.set_arrow(initial_pos)
+	def init_middle(self):
+		## initialize to either 0 or nposs-1
+		initial_pos=int(self.nposs/2)
+		self.set_arrow(initial_pos)
+
+	def set_arrow(self, pos):
+		self.current_pos=pos
+		v=self.arrow_v.copy()
+		v[:,0]+=self.ticks[pos]
+		self.arrow.setVertices(v)
+		self.show_arrow=True
+
+	def arrow_left(self):
+		if self.current_pos==0:
+			return
+		else:
+			self.set_arrow(self.current_pos-1)
+
+	def arrow_right(self):
+		if self.current_pos==self.nposs-1:
+			return
+		else:
+			self.set_arrow(self.current_pos+1)
+	def draw(self):
+		for el in self.elements:
+			el.draw()
+		if self.show_arrow:
+			self.arrow.draw()
+
+probe_task=LikertScale(win, 3,
+	instruction_text=u"Which sentence best describes your state prior to this probe? Use keys 1 to 3 to respond.",
+	scale_labels=["On task", "Off task,\nbut trying to concetrate", "Off task, \nand not trying to concentrate"])
+
+probe_confidence=LikertScale(win, 5,
+	instruction_text=u"How confident are you about your answer? Use keys 1 to 5 to respond.",
+	scale_labels=["Not at all confident", "", "", "", "Very confident"])
 
 def main():
     sart()
