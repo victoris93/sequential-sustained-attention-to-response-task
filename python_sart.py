@@ -288,53 +288,17 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
     resultList =[]
     startTime = time.process_time()
     ntrials = 45 * reps
-    ntrial = 1
     probe_times=np.array(np.random.randint(min_probe_interval, max_probe_interval +1, num_probes-1)/0.9, dtype=np.int)
     probe_trials=np.cumsum(np.array(probe_times/sum(probe_times)*(ntrials-5/0.75), dtype=np.int))
     probe_trials=np.append(probe_trials, 255)
-    fileName = "SART_probes_" + str(partInfo[0]) + ".csv"
-    path = os.getcwd() + "/"
-    probeData = path + fileName
-    with open(probeData, "w") as probeDataFile:
-        probeDataFile.write("part_num, part_gender, part_age, part_school_yr, part_normal_vision, exp_initials, probe_type, preceding_trial_num, response, rt\n")
-    probeDataFile=open(probeData, "a")
     for trial in trials:
         probe_trial = 0
         response_task = "NA"
         response_confidence = "NA"
         if ntrial in probe_trials:
             probe_trial = 1
-            probe_clock = core.Clock()
             response_task=show_probe(probe_task)
-            logtext="{part_num}, {part_gender}, {part_age}, {part_school_yr}, {part_normal_vision}, {exp_initials}, {probe_type}, {preceding_trial_num}, {response}, {rt}\n".format( \
-            part_num= partInfo[0], \
-            part_gender=partInfo[1], \
-            part_age=partInfo[2], \
-            part_school_yr=partInfo[3], \
-            part_normal_vision=partInfo[4], \
-            exp_initials=partInfo[5], \
-            probe_type = "task",\
-            preceding_trial_num = ntrial - 1, \
-            response = response_task, \
-            rt = probe_clock.getTime())
-            probeDataFile.write(logtext)
-            probeDataFile.flush()
-            probe_clock.reset()
             response_confidence=show_probe(probe_confidence)
-            logtext="{part_num}, {part_gender}, {part_age}, {part_school_yr}, {part_normal_vision}, {exp_initials}, {probe_type},{preceding_trial_num}, {response}, {rt}\n".format( \
-            part_num= partInfo[0], \
-            part_gender=partInfo[1], \
-            part_age=partInfo[2], \
-            part_school_yr=partInfo[3], \
-            part_normal_vision=partInfo[4], \
-            exp_initials=partInfo[5], \
-            probe_type = "confidence",\
-            preceding_trial_num = ntrial - 1, \
-            response = response_confidence, \
-            rt = probe_clock.getTime())
-            probeDataFile.write(logtext)
-            probeDataFile.flush()
-        ntrial += 1
         tNum += 1
         resultList.append(sart_trial(win, fb, omitNum, xStim, circleStim,
                               numStim, correctStim, incorrectStim, clock, 
