@@ -173,7 +173,8 @@ def sart(win = win, monitor="testMonitor", blocks=1, reps=1, omitNum=3, practice
     outFile.write("part_num\tpart_gender\tpart_age\tpart_school_yr\t" +
                   "part_normal_vision\texp_initials\tblock_num\ttrial_num\t" +
                   "number\tomit_num\tresp_acc\tresp_rt\ttrial_start_time_s" +
-                  "\ttrial_end_time_s\tmean_trial_time_s\ttiming_function\n")
+                  "\ttrial_end_time_s\tprobe_trial\tresponse_task\tresponse_confidence\tmean_trial_time_s\ttiming_function\n")
+    print("mainResults", mainResultList)
     for line in mainResultList:
         for item in partInfo:
             outFile.write(str(item) + "\t")
@@ -298,7 +299,11 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
         probeDataFile.write("part_num, part_gender, part_age, part_school_yr, part_normal_vision, exp_initials, probe_type, preceding_trial_num, response, rt\n")
     probeDataFile=open(probeData, "a")
     for trial in trials:
+        probe_trial = 0
+        response_task = "NA"
+        response_confidence = "NA"
         if ntrial in probe_trials:
+            probe_trial = 1
             probe_clock = core.Clock()
             response_task=show_probe(probe_task)
             logtext="{part_num}, {part_gender}, {part_age}, {part_school_yr}, {part_normal_vision}, {exp_initials}, {probe_type}, {preceding_trial_num}, {response}, {rt}\n".format( \
@@ -309,14 +314,13 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
             part_normal_vision=partInfo[4], \
             exp_initials=partInfo[5], \
             probe_type = "task",\
-            preceding_trial_num = ntrial, \
+            preceding_trial_num = ntrial - 1, \
             response = response_task, \
             rt = probe_clock.getTime())
             probeDataFile.write(logtext)
             probeDataFile.flush()
             probe_clock.reset()
             response_confidence=show_probe(probe_confidence)
-            print(response_confidence)
             logtext="{part_num}, {part_gender}, {part_age}, {part_school_yr}, {part_normal_vision}, {exp_initials}, {probe_type},{preceding_trial_num}, {response}, {rt}\n".format( \
             part_num= partInfo[0], \
             part_gender=partInfo[1], \
@@ -325,7 +329,7 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
             part_normal_vision=partInfo[4], \
             exp_initials=partInfo[5], \
             probe_type = "confidence",\
-            preceding_trial_num = ntrial, \
+            preceding_trial_num = ntrial - 1, \
             response = response_confidence, \
             rt = probe_clock.getTime())
             probeDataFile.write(logtext)
@@ -336,6 +340,9 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
                               numStim, correctStim, incorrectStim, clock, 
                               trials.thisTrial['fontSize'], 
                               trials.thisTrial['number'], tNum, bNum, mouse))
+        resultList[-1].append(probe_trial)
+        resultList[-1].append(response_task)
+        resultList[-1].append(response_confidence)
     endTime = time.process_time()
     totalTime = endTime - startTime
     for row in resultList:
