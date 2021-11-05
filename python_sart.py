@@ -96,7 +96,17 @@ import random
 from psychopy import visual, core, data, event, gui
 import numpy as np
 import sys
+import threading
+import master8 as m
 import os
+try:
+   import queue
+except ImportError:
+   import Queue as queue
+
+TMS = m.Master8('/dev/cu.usbserial-14240')
+TMS.changeChannelMode(1, "G")
+print(TMS.connected)
 
 stimcolor = "white"
 probe_keys=["1","2", "3", "4", "5"]
@@ -104,8 +114,49 @@ quit_button="escape"
 
 min_probe_interval=30 # in s
 max_probe_interval=60 # in s
-num_probes = 5
-ISI = 0.9
+num_probes = 3
+ISI = 1.15
+reps = 2 #experiment: 24. this way ntrials = 1080, total duration = 1242 seconda, comparable to 1200 secs in Boaye et al. (2021)
+
+ntrials = 45 * reps
+probe_times=np.array(np.random.randint(min_probe_interval, max_probe_interval +1, num_probes-1)/ISI, dtype=np.int)
+#probe_trials=np.cumsum(np.array(probe_times/sum(probe_times)*(ntrials-num_probes/ISI), dtype=np.int))
+probe_trials = np.array((np.cumsum(probe_times)/ISI), dtype = int)
+probe_trials=np.append(probe_trials, ntrials - 1)
+stim_times = np.append(probe_trials[0], np.diff(probe_trials)) * ISI
+#print("STIM TIMES: ", stim_times)
+#print("PROBE TRIALS: ", probe_trials)
+
+def make_interval_array(T, minInterval, maxInterval):
+	interval_array = np.array((np.random.uniform(minInterval, maxInterval)))
+	while np.cumsum(interval_array)[-1] <= T:
+			nextInterval = np.random.uniform(minInterval, maxInterval)
+			interval_array = np.append(interval_array, nextInterval)
+	return interval_array[:-1]
+
+pulse_intervals = []		
+for task_period in stim_times:
+	pulse_intervals.append(make_interval_array(task_period, 3, 5)) # a list of arrays containing intervals: each array corresponds to a period before the following probe
+	
+#print("INTERVALS:", pulse_intervals, "length: ", len(pulse_intervals))
+
+def rTMS(tms, interval_array, starting_time, TMS_output, participant, out_queue): #add tms object later
+    pulse_num = 1
+    TMSclock = core.Clock()
+    TMSclock.add(-1 * starting_time)
+    for interval in interval_array:
+        time.sleep(interval)
+        tms.trigger(1)
+        TMS_end_time =  TMSclock.getTime()
+        print("PULSE: ", TMS_end_time)
+        logtext="{part_num},{pulse},{time}\n".format( \
+						pulse=pulse_num,\
+						part_num=participant, \
+						time="%.10f"%(TMS_end_time))
+        TMS_output.write(logtext)
+        pulse_num +=1
+    #print("LAST PULSE: ", TMS_end_time)
+    out_queue.put(TMS_end_time)
 
 def part_info_gui():
     info = gui.Dlg(title='SART')
@@ -134,11 +185,15 @@ def part_info_gui():
     return infoData
 
 partInfo = part_info_gui()
+thisDir = os.getcwd()
+TMS_datafile =  thisDir + '/SART-rTMS_'  + str(partInfo[0]) + ".csv"
+TMS_output = open(TMS_datafile, "w")
+TMS_output.write("part_num,pulse,time\n")
 
-win = visual.Window(fullscr=True, color="black", units='cm', monitor="testMonitor")
+win = visual.Window(fullscr=False, color="black", units='cm', monitor="testMonitor")
 
-def sart(win = win, monitor="testMonitor", blocks=1, reps=1, omitNum=3, practice=False, 
-         path="", fixed=True, partInfo = partInfo):
+def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, practice=False, 
+         path="", fixed=True, partInfo = partInfo, stimulation = True, TMS_output = TMS_output):
     """ SART Task.
     
     monitor......The monitor to be used for the task.
@@ -162,19 +217,17 @@ def sart(win = win, monitor="testMonitor", blocks=1, reps=1, omitNum=3, practice
     if practice == True:
         sart_prac_inst(win, omitNum)
         mainResultList.extend(sart_block(win, fb=True, omitNum=omitNum, 
-                              reps=1, bNum=0, fixed=fixed, num_probes = 3, min_probe_interval = 30, max_probe_interval = 60))
+                              reps=reps, bNum=0, fixed=fixed, probe_trials = probe_trials, stimulation = True, TMS_output = TMS_output))
     sart_act_task_inst(win)
-    
     for block in range(1, blocks + 1):
         mainResultList.extend(sart_block(win, fb=False, omitNum=omitNum,
-                              reps=reps, bNum=block, fixed=fixed, num_probes = 3, min_probe_interval = 30, max_probe_interval = 60))
+                              reps=reps, bNum=block, fixed=fixed, probe_trials = probe_trials, stimulation = True, TMS_output = TMS_output))
         if (blocks > 1) and (block != blocks):
             sart_break_inst(win)
     outFile.write("part_num\tpart_gender\tpart_age\tpart_school_yr\t" +
                   "part_normal_vision\texp_initials\tblock_num\ttrial_num\t" +
                   "number\tomit_num\tresp_acc\tresp_rt\ttrial_start_time_s" +
                   "\ttrial_end_time_s\tprobe_trial\tresponse_task\tresponse_confidence\tmean_trial_time_s\ttiming_function\n")
-    print("mainResults", mainResultList)
     for line in mainResultList:
         for item in partInfo:
             outFile.write(str(item) + "\t")
@@ -252,7 +305,7 @@ def sart_break_inst(win):
             nbInst.draw()
             win.flip()
 
-def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interval, max_probe_interval):
+def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, TMS_output):
     mouse = event.Mouse(visible=0)
     xStim = visual.TextStim(win, text="X", height=3.35, color="white", 
                             pos=(0, 0))
@@ -284,13 +337,16 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
         trials = data.TrialHandler(list, nReps=reps, method='random')
         
     clock = core.Clock()
-    tNum = 0
     resultList =[]
-    startTime = time.process_time()
-    ntrials = 45 * reps
-    probe_times=np.array(np.random.randint(min_probe_interval, max_probe_interval +1, num_probes-1)/0.9, dtype=np.int)
-    probe_trials=np.cumsum(np.array(probe_times/sum(probe_times)*(ntrials-5/0.75), dtype=np.int))
-    probe_trials=np.append(probe_trials, 255)
+    if stimulation == True:
+        TMS_end_time_queue = queue.Queue()
+        rTMS_interval_index = 1
+        startTime = time.process_time()
+        if __name__ == "__main__":
+            rTMS_Thread = threading.Thread(target=rTMS, args=(TMS, pulse_intervals[0], startTime, TMS_output, partInfo[0], TMS_end_time_queue))
+            rTMS_Thread.start()
+    tNum = 0
+    ntrial = 1
     for trial in trials:
         probe_trial = 0
         response_task = "NA"
@@ -299,6 +355,13 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
             probe_trial = 1
             response_task=show_probe(probe_task)
             response_confidence=show_probe(probe_confidence)
+            if (stimulation == True and rTMS_interval_index < len(pulse_intervals)):
+                if __name__ == "__main__":
+                    add_experiment_time = TMS_end_time_queue.get() + clock.getTime()
+                    rTMS_Thread = threading.Thread(target=rTMS, args=(TMS, pulse_intervals[rTMS_interval_index], add_experiment_time, TMS_output, partInfo[0], TMS_end_time_queue))
+                    rTMS_Thread.start() 
+            rTMS_interval_index += 1
+        ntrial += 1
         tNum += 1
         resultList.append(sart_trial(win, fb, omitNum, xStim, circleStim,
                               numStim, correctStim, incorrectStim, clock, 
@@ -311,6 +374,7 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
     totalTime = endTime - startTime
     for row in resultList:
         row.append(totalTime/tNum)
+    #print(resultList)
     print ("\n\n#### Block " + str(bNum) + " ####\nDes. Time Per P Trial: " +
            str(2.05*1000) + " ms\nDes. Time Per Non-P Trial: " +
            str(1.15*1000) + " ms\nActual Time Per Trial: " +
@@ -320,6 +384,7 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, num_probes, min_probe_interv
 def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim, 
                incorrectStim, clock, fontSize, number, tNum, bNum, mouse):
     startTime = time.process_time()
+    #print("start time: ", startTime)
     mouse.setVisible(0)
     respRt = "NA"
     numStim.setHeight(fontSize)
@@ -328,6 +393,7 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
     event.clearEvents()
     clock.reset()
     stimStartTime = time.process_time()
+    #print("stim start time: ", stimStartTime)
     win.flip()
     xStim.draw()
     circleStim.draw()
@@ -357,11 +423,13 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
         else:
             correctStim.draw()
         stimStartTime = time.process_time()
+        #print("stim start time 2 :", stimStartTime)
         win.flip()
         waitTime = .90 - (time.process_time() - stimStartTime) 
         core.wait(waitTime, hogCPUperiod=waitTime)
         win.flip()
     endTime = time.process_time()
+    #print("stim end time : ", endTime)
     totalTime = endTime - startTime
     return [str(bNum), str(tNum), str(number), str(omitNum), str(respAcc),
             str(respRt), str(startTime), str(endTime)]
