@@ -104,9 +104,9 @@ try:
 except ImportError:
    import Queue as queue
 
-TMS = m.Master8('/dev/cu.usbserial-14240')
-TMS.changeChannelMode(1, "G")
-print(TMS.connected)
+TMS_device = m.Master8('/dev/cu.usbserial-141120')
+TMS_device.changeChannelMode(1, "G")
+print(TMS_device.connected)
 
 stimcolor = "white"
 probe_keys=["1","2", "3", "4", "5"]
@@ -140,7 +140,8 @@ for task_period in stim_times:
 	
 #print("INTERVALS:", pulse_intervals, "length: ", len(pulse_intervals))
 
-def rTMS(tms, interval_array, starting_time, TMS_output, participant, out_queue): #add tms object later
+def rTMS(tms, interval_array, starting_time, TMS_output, participant, out_queue):
+     #add tms object later
     pulse_num = 1
     TMSclock = core.Clock()
     TMSclock.add(-1 * starting_time)
@@ -209,7 +210,6 @@ def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, pract
                  instead of random order (e.g., 1, 2, 3, 4, 5, 6, 7, 8 ,9,
                  1, 2, 3, 4, 5, 6, 7, 8, 9...).
     """
-    
     mainResultList = []
     fileName = "SART_" + str(partInfo[0]) + ".csv"
     outFile = open(path + fileName, "w")
@@ -343,7 +343,7 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, T
         rTMS_interval_index = 1
         startTime = time.process_time()
         if __name__ == "__main__":
-            rTMS_Thread = threading.Thread(target=rTMS, args=(TMS, pulse_intervals[0], startTime, TMS_output, partInfo[0], TMS_end_time_queue))
+            rTMS_Thread = threading.Thread(target=rTMS, args=(TMS_device, pulse_intervals[0], startTime, TMS_output, partInfo[0], TMS_end_time_queue))
             rTMS_Thread.start()
     tNum = 0
     ntrial = 1
@@ -358,7 +358,7 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, T
             if (stimulation == True and rTMS_interval_index < len(pulse_intervals)):
                 if __name__ == "__main__":
                     add_experiment_time = TMS_end_time_queue.get() + clock.getTime()
-                    rTMS_Thread = threading.Thread(target=rTMS, args=(TMS, pulse_intervals[rTMS_interval_index], add_experiment_time, TMS_output, partInfo[0], TMS_end_time_queue))
+                    rTMS_Thread = threading.Thread(target=rTMS, args=(TMS_device, pulse_intervals[rTMS_interval_index], add_experiment_time, TMS_output, partInfo[0], TMS_end_time_queue))
                     rTMS_Thread.start() 
             rTMS_interval_index += 1
         ntrial += 1
