@@ -6,6 +6,8 @@ A Python version of the Sustained Attention to Response Task (SART) as detailed 
 ![SART task flow](/python-sustained-attention-to-response-task-sart.png?raw=true "SART Task Flow")
 
 ### To make sure TMS pulses are delivered
+Device used: Magstim Rapid2 triggered via [A.M.P.I. Master-8](https://www.ampi.co.il/master-8).
+
 1. Before plugging in Master-8 in a USB port, retrieve the list of addresses of all the devices associated with the Mac: `ls /dev`
 2. Plug in Master-8.
 3. Call the same command as in 1. to see whether a new address has been added to the list. The address you are looking for is of type `dev/cu.usbserial-xxxxxx`. Pass this address as an argument in line 107 of `python_sart.py` like so: `TMS_device = m.Master8('/dev/cu.usbserial-xxxxxx')`
