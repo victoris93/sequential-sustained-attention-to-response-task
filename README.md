@@ -1,9 +1,15 @@
 sequential-sustained-attention-to-response-task
 =============
 
-A Python version of the Sustained Attention to Response Task (SART) as detailed by Robertson et al. (1997). Requires [PsychoPy](http://www.psychopy.org/).
+A Python version of the Sustained Attention to Response Task (SART) as detailed by Robertson et al. (1997). Requires [PsychoPy](http://www.psychopy.org/). TMS stimulation is integrated within the task via triggering of A.M.P.I. Master-8.
 
 ![SART task flow](/python-sustained-attention-to-response-task-sart.png?raw=true "SART Task Flow")
+
+### To make sure TMS pulses are delivered
+1. Before plugging in Master-8 in a USB port, retrieve the list of addresses of all the devices associated with the Mac: `ls /dev`
+2. Plug in Master-8.
+3. Call the same command as in 1. to see whether a new address has been added to the list. The address you are looking for is of type `dev/cu.usbserial-xxxxxx`. Pass this address as an argument in line 107 of `python_sart.py` like so: `TMS_device = m.Master8('/dev/cu.usbserial-xxxxxx')`
+4. Before starting`python_sart.py`, make sure the TMS device is ready.
 
 ### How to Use
 
