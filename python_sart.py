@@ -103,13 +103,13 @@ try:
    import queue
 except ImportError:
    import Queue as queue
+from pyfirmata import Arduino, util
 
-TMS_device = m.Master8('/dev/cu.usbserial-141120')
-TMS_device.changeChannelMode(1, "G")
-print(TMS_device.connected)
-
+stimulation = False
+eeg = False
 stimcolor = "white"
-probe_keys=["1","2", "3", "4", "5"]
+task_probe_keys=["1","2", "3", "4"]
+intention_probe_keys = ["1", "2"]
 quit_button="escape"
 
 min_probe_interval=30 # in s
@@ -123,41 +123,7 @@ probe_times=np.array(np.random.randint(min_probe_interval, max_probe_interval +1
 #probe_trials=np.cumsum(np.array(probe_times/sum(probe_times)*(ntrials-num_probes/ISI), dtype=np.int))
 probe_trials = np.array((np.cumsum(probe_times)/ISI), dtype = int)
 probe_trials=np.append(probe_trials, ntrials - 1)
-stim_times = np.append(probe_trials[0], np.diff(probe_trials)) * ISI
-#print("STIM TIMES: ", stim_times)
-#print("PROBE TRIALS: ", probe_trials)
 
-def make_interval_array(T, minInterval, maxInterval):
-	interval_array = np.array((np.random.uniform(minInterval, maxInterval)))
-	while np.cumsum(interval_array)[-1] <= T:
-			nextInterval = np.random.uniform(minInterval, maxInterval)
-			interval_array = np.append(interval_array, nextInterval)
-	return interval_array[:-1]
-
-pulse_intervals = []		
-for task_period in stim_times:
-	pulse_intervals.append(make_interval_array(task_period, 3, 5)) # a list of arrays containing intervals: each array corresponds to a period before the following probe
-	
-#print("INTERVALS:", pulse_intervals, "length: ", len(pulse_intervals))
-
-def rTMS(tms, interval_array, starting_time, TMS_output, participant, out_queue):
-     #add tms object later
-    pulse_num = 1
-    TMSclock = core.Clock()
-    TMSclock.add(-1 * starting_time)
-    for interval in interval_array:
-        time.sleep(interval)
-        tms.trigger(1)
-        TMS_end_time =  TMSclock.getTime()
-        print("PULSE: ", TMS_end_time)
-        logtext="{part_num},{pulse},{time}\n".format( \
-						pulse=pulse_num,\
-						part_num=participant, \
-						time="%.10f"%(TMS_end_time))
-        TMS_output.write(logtext)
-        pulse_num +=1
-    #print("LAST PULSE: ", TMS_end_time)
-    out_queue.put(TMS_end_time)
 
 def part_info_gui():
     info = gui.Dlg(title='SART')
@@ -178,6 +144,10 @@ def part_info_gui():
                   choices=["Please Select", "Yes", "No"])
     info.addText('Experimenter Info')
     info.addField('DIS Initials:  ')
+    info.addField('EEG connected: ', 
+                  choices=["Please Select", "Yes", "No"])
+    info.addField('Stimulation: ', 
+                  choices=["Please Select", "Yes", "No"])
     info.show()
     if info.OK:
         infoData = info.data
@@ -186,15 +156,86 @@ def part_info_gui():
     return infoData
 
 partInfo = part_info_gui()
-thisDir = os.getcwd()
-TMS_datafile =  thisDir + '/SART-rTMS_'  + str(partInfo[0]) + ".csv"
-TMS_output = open(TMS_datafile, "w")
-TMS_output.write("part_num,pulse,time\n")
+
+if partInfo[-1] == "Yes":
+    stimulation = True
+    TMS_device = m.Master8('/dev/cu.usbserial-141120')
+    TMS_device.changeChannelMode(1, "G")
+    
+    stim_times = np.append(probe_trials[0], np.diff(probe_trials)) * ISI
+    
+    pulse_intervals = []		
+    for task_period in stim_times:
+	    pulse_intervals.append(make_interval_array(task_period, 3, 5)) # a list of arrays containing intervals: each array corresponds to a period before the following probe
+    
+    thisDir = os.getcwd()
+    TMS_datafile =  thisDir + '/SART-rTMS_'  + str(partInfo[0]) + ".csv"
+    TMS_output = open(TMS_datafile, "w")
+    TMS_output.write("part_num,pulse,time\n")
+    
+    
+if partInfo[-2] == "Yes":
+    eeg = True
+    ArduinoBoard = Arduino('/dev/ttyACM0')
+    task_start_pin = [ArduinoBoard.digital[8], ArduinoBoard.digital[9]]
+    cross_pin = [ArduinoBoard.digital[2], ArduinoBoard.digital[3]]
+    space_pressed_pin = [ArduinoBoard.digital[4], ArduinoBoard.digital[5]]
+    space_omit_pin = [ArduinoBoard.digital[5], ArduinoBoard.digital[6]]
+    tms_pin = [ArduinoBoard.digital[6], ArduinoBoard.digital[7]]
+
+    probe_pin = [ArduinoBoard.digital[3], ArduinoBoard.digital[4]]
+    probe_response_pin_1 = [ArduinoBoard.digital[2]]
+    probe_response_pin_2 = [ArduinoBoard.digital[3]]
+    probe_response_pin_3 = [ArduinoBoard.digital[4]]
+    probe_response_pin_4 = [ArduinoBoard.digital[5]]
+    
+    stim_pin_1 = [ArduinoBoard.digital[2]]
+    stim_pin_2 = [ArduinoBoard.digital[3]]
+    stim_pin_3 = [ArduinoBoard.digital[4]]
+    stim_pin_4 = [ArduinoBoard.digital[5]]
+    stim_pin_5 = [ArduinoBoard.digital[6]]
+    stim_pin_6 = [ArduinoBoard.digital[7]]
+    stim_pin_7 = [ArduinoBoard.digital[8]]
+    stim_pin_8 = [ArduinoBoard.digital[9]]
+    stim_pin_9 = [ArduinoBoard.digital[2], ArduinoBoard.digital[9]]
+    stim_pins = [stim_pin_1, stim_pin_2, stim_pin_3, stim_pin_4, stim_pin_5, stim_pin_6, stim_pin_7, stim_pin_8, stim_pin_9]
+
+    
+    def eeg_trigger(pins):
+	    for pin in pins:
+		    pin.write(1)
+	    for pin in pins:
+		    pin.write(0)
 
 win = visual.Window(fullscr=False, color="black", units='cm', monitor="testMonitor")
 
+def rTMS(tms, interval_array, starting_time, TMS_output, participant, out_queue, eeg = eeg):
+    pulse_num = 1
+    TMSclock = core.Clock()
+    TMSclock.add(-1 * starting_time)
+    for interval in interval_array:
+        time.sleep(interval)
+        tms.trigger(1)
+        if eeg ==True:
+            eeg_trigger(tms_pin)
+        TMS_end_time =  TMSclock.getTime()
+        logtext="{part_num},{pulse},{time}\n".format( \
+        pulse=pulse_num,\
+        part_num=participant, \
+        time="%.10f"%(TMS_end_time))
+        TMS_output.write(logtext)
+        pulse_num +=1
+    out_queue.put(TMS_end_time)
+
+def make_interval_array(T, minInterval, maxInterval):
+    interval_array = np.array((np.random.uniform(minInterval, maxInterval)))
+    while np.cumsum(interval_array)[-1] <= T:
+        nextInterval = np.random.uniform(minInterval, maxInterval)
+        interval_array = np.append(interval_array, nextInterval)
+    return interval_array[:-1]
+    
 def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, practice=False, 
-         path="", fixed=True, partInfo = partInfo, stimulation = True, TMS_output = TMS_output):
+         path="", fixed=True, partInfo = partInfo):
     """ SART Task.
     
     monitor......The monitor to be used for the task.
@@ -217,17 +258,17 @@ def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, pract
     if practice == True:
         sart_prac_inst(win, omitNum)
         mainResultList.extend(sart_block(win, fb=True, omitNum=omitNum, 
-                              reps=reps, bNum=0, fixed=fixed, probe_trials = probe_trials, stimulation = True, TMS_output = TMS_output))
+                              reps=reps, bNum=0, fixed=fixed, probe_trials = probe_trials))
     sart_act_task_inst(win)
     for block in range(1, blocks + 1):
         mainResultList.extend(sart_block(win, fb=False, omitNum=omitNum,
-                              reps=reps, bNum=block, fixed=fixed, probe_trials = probe_trials, stimulation = True, TMS_output = TMS_output))
+                              reps=reps, bNum=block, fixed=fixed, probe_trials = probe_trials))
         if (blocks > 1) and (block != blocks):
             sart_break_inst(win)
     outFile.write("part_num\tpart_gender\tpart_age\tpart_school_yr\t" +
-                  "part_normal_vision\texp_initials\tblock_num\ttrial_num\t" +
+                  "part_normal_vision\texp_initials\teeg_connected\tstimulation\tblock_num\ttrial_num\t" +
                   "number\tomit_num\tresp_acc\tresp_rt\ttrial_start_time_s" +
-                  "\ttrial_end_time_s\tprobe_trial\tresponse_task\tresponse_confidence\tmean_trial_time_s\ttiming_function\n")
+                  "\ttrial_end_time_s\tprobe_trial\tresponse_task\tresponse_intention\tresponse_confidence\tmean_trial_time_s\ttiming_function\n")
     for line in mainResultList:
         for item in partInfo:
             outFile.write(str(item) + "\t")
@@ -236,7 +277,7 @@ def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, pract
         outFile.write("time.process_time()\n")
     outFile.close()
     
-def sart_init_inst(win, omitNum):
+def sart_init_inst(win, omitNum, eeg = eeg):
     inst = visual.TextStim(win, text=("In this task, a series of numbers will" +
                                       " be presented to you.  For every" +
                                       " number that appears except for the" +
@@ -254,6 +295,8 @@ def sart_init_inst(win, omitNum):
                                       " are ready to start."), 
                            color="white", height=0.7, pos=(0, 0))
     event.clearEvents()
+    if eeg == True:
+        eeg_trigger(task_start_pin)
     while 'b' not in event.getKeys():
         inst.draw()
         win.flip()
@@ -305,7 +348,7 @@ def sart_break_inst(win):
             nbInst.draw()
             win.flip()
 
-def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, TMS_output):
+def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation = stimulation , eeg = eeg):
     mouse = event.Mouse(visible=0)
     xStim = visual.TextStim(win, text="X", height=3.35, color="white", 
                             pos=(0, 0))
@@ -338,6 +381,7 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, T
         
     clock = core.Clock()
     resultList =[]
+    startTime = time.process_time()
     if stimulation == True:
         TMS_end_time_queue = queue.Queue()
         rTMS_interval_index = 1
@@ -350,17 +394,21 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, T
     for trial in trials:
         probe_trial = 0
         response_task = "NA"
+        response_intention = "NA"
         response_confidence = "NA"
         if ntrial in probe_trials:
             probe_trial = 1
-            response_task=show_probe(probe_task)
-            response_confidence=show_probe(probe_confidence)
+            response_task=show_probe(probe_task, task_probe_keys)
+            response_intention=show_probe(probe_intention, intention_probe_keys)
+            response_confidence=show_probe(probe_confidence, task_probe_keys)
             if (stimulation == True and rTMS_interval_index < len(pulse_intervals)):
                 if __name__ == "__main__":
                     add_experiment_time = TMS_end_time_queue.get() + clock.getTime()
                     rTMS_Thread = threading.Thread(target=rTMS, args=(TMS_device, pulse_intervals[rTMS_interval_index], add_experiment_time, TMS_output, partInfo[0], TMS_end_time_queue))
                     rTMS_Thread.start() 
-            rTMS_interval_index += 1
+                rTMS_interval_index += 1
+        if eeg == True:
+            eeg_trigger(stimulus_pins[tNum])
         ntrial += 1
         tNum += 1
         resultList.append(sart_trial(win, fb, omitNum, xStim, circleStim,
@@ -369,12 +417,12 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, T
                               trials.thisTrial['number'], tNum, bNum, mouse))
         resultList[-1].append(probe_trial)
         resultList[-1].append(response_task)
+        resultList[-1].append(response_intention)
         resultList[-1].append(response_confidence)
     endTime = time.process_time()
     totalTime = endTime - startTime
     for row in resultList:
         row.append(totalTime/tNum)
-    #print(resultList)
     print ("\n\n#### Block " + str(bNum) + " ####\nDes. Time Per P Trial: " +
            str(2.05*1000) + " ms\nDes. Time Per Non-P Trial: " +
            str(1.15*1000) + " ms\nActual Time Per Trial: " +
@@ -382,9 +430,8 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation, T
     return resultList
 
 def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim, 
-               incorrectStim, clock, fontSize, number, tNum, bNum, mouse):
+               incorrectStim, clock, fontSize, number, tNum, bNum, mouse, eeg = eeg):
     startTime = time.process_time()
-    #print("start time: ", startTime)
     mouse.setVisible(0)
     respRt = "NA"
     numStim.setHeight(fontSize)
@@ -393,7 +440,6 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
     event.clearEvents()
     clock.reset()
     stimStartTime = time.process_time()
-    #print("stim start time: ", stimStartTime)
     win.flip()
     xStim.draw()
     circleStim.draw()
@@ -401,13 +447,19 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
     core.wait(waitTime, hogCPUperiod=waitTime)
     maskStartTime = time.process_time()
     win.flip()
+    if eeg == True:
+        eeg_trigger(cross_pin)
     waitTime = 0.9 - (time.process_time() - maskStartTime)
     core.wait(waitTime, hogCPUperiod=waitTime)
     win.flip()
     allKeys = event.getKeys(timeStamped=clock)
     if len(allKeys) != 0:
+        if eeg == True:
+            eeg_trigger(space_pressed_pin)
         respRt = allKeys[0][1]
     if len(allKeys) == 0:
+        if eeg == True:
+            eeg_trigger(space_omit_pin)
         if omitNum == number:
             respAcc = 1
         else:
@@ -423,24 +475,33 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
         else:
             correctStim.draw()
         stimStartTime = time.process_time()
-        #print("stim start time 2 :", stimStartTime)
         win.flip()
         waitTime = .90 - (time.process_time() - stimStartTime) 
         core.wait(waitTime, hogCPUperiod=waitTime)
         win.flip()
     endTime = time.process_time()
-    #print("stim end time : ", endTime)
     totalTime = endTime - startTime
     return [str(bNum), str(tNum), str(number), str(omitNum), str(respAcc),
             str(respRt), str(startTime), str(endTime)]
 
-def show_probe(probe):
+def show_probe(probe, probe_keys, eeg = eeg):
 	probe.show_arrow=False
+	if eeg == True:
+	    eeg_trigger(probe_pin)
 	while(1):
 		probe.draw()
 		win.flip()
 		keys=event.getKeys()
 		if len(set(keys) & set(probe_keys))>0:
+		    if eeg == True:
+		        if "1" in keys:
+					eeg_trigger(probe_response_pin_1)
+				elif "2" in keys:
+					eeg_trigger(probe_response_pin_2)
+				elif "3" in keys:
+					eeg_trigger(probe_response_pin_3)
+				elif "4" in keys:
+					eeg_trigger(probe_response_pin_4)
 			k=int(list(set(keys) & set(probe_keys))[0])-1
 			probe.set_arrow(k)
 			probe.draw()
@@ -490,7 +551,10 @@ class LikertScale:
 	def set_arrow(self, pos):
 		self.current_pos=pos
 		v=self.arrow_v.copy()
-		v[:,0]+=self.ticks[pos]
+		try:
+			v[:,0]+=self.ticks[pos]
+		except:
+			pass
 		self.arrow.setVertices(v)
 		self.show_arrow=True
 
@@ -511,13 +575,17 @@ class LikertScale:
 		if self.show_arrow:
 			self.arrow.draw()
 
-probe_task=LikertScale(win, 3,
-	instruction_text=u"Which sentence best describes your state prior to this probe? Use keys 1 to 3 to respond.",
-	scale_labels=["On task", "Off task,\nbut trying to concetrate", "Off task, \nand not trying to concentrate"])
+probe_task=LikertScale(win, 4,
+	instruction_text=u"To what extent were you on task? Use keys 1 to 4 to respond.",
+	scale_labels=["Completely on-task", "", "", "Completely off-task"])
 
-probe_confidence=LikertScale(win, 5,
-	instruction_text=u"How confident are you about your answer? Use keys 1 to 5 to respond.",
-	scale_labels=["Not at all confident", "", "", "", "Very confident"])
+probe_intention=LikertScale(win, 2,
+	instruction_text=u"Did you intend to stay on task? Use keys 1 or 2 to respond.",
+	scale_labels=["yes", "no"])
+	
+probe_confidence=LikertScale(win, 4,
+	instruction_text=u"How confident are you about your answer? Use keys 1 to 6 to respond.",
+	scale_labels=["Not at all confident", "", "", "Very confident"])
 
 def main():
     sart()
