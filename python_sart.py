@@ -116,7 +116,7 @@ min_probe_interval=30 # in s
 max_probe_interval=60 # in s
 num_probes = 3
 ISI = 1.15
-reps = 2 #experiment: 24. this way ntrials = 1080, total duration = 1242 seconda, comparable to 1200 secs in Boaye et al. (2021)
+reps = 2 #experiment: 17. this way ntrials = 1080, total duration = 1242 seconda, comparable to 1200 secs in Boaye et al. (2021)
 
 ntrials = 45 * reps
 probe_times=np.array(np.random.randint(min_probe_interval, max_probe_interval +1, num_probes-1)/ISI, dtype=np.int)
@@ -177,11 +177,11 @@ if partInfo[-1] == "Yes":
 if partInfo[-2] == "Yes":
     eeg = True
     ArduinoBoard = Arduino('/dev/ttyACM0')
-    task_start_pin = [ArduinoBoard.digital[8], ArduinoBoard.digital[9]]
-    cross_pin = [ArduinoBoard.digital[2], ArduinoBoard.digital[3]]
-    space_pressed_pin = [ArduinoBoard.digital[4], ArduinoBoard.digital[5]]
-    space_omit_pin = [ArduinoBoard.digital[5], ArduinoBoard.digital[6]]
-    tms_pin = [ArduinoBoard.digital[6], ArduinoBoard.digital[7]]
+    task_start_pin = [ArduinoBoard.digital[9]]
+    cross_pin = [ ArduinoBoard.digital[8]]
+    space_pressed_pin = [ArduinoBoard.digital[7]]
+    space_omit_pin = [ArduinoBoard.digital[2], ArduinoBoard.digital[3]]
+    tms_pin = [ArduinoBoard.digital[4], ArduinoBoard.digital[5]]
 
     probe_pin = [ArduinoBoard.digital[3], ArduinoBoard.digital[4]]
     probe_response_pin_1 = [ArduinoBoard.digital[2]]
@@ -189,16 +189,18 @@ if partInfo[-2] == "Yes":
     probe_response_pin_3 = [ArduinoBoard.digital[4]]
     probe_response_pin_4 = [ArduinoBoard.digital[5]]
     
-    stim_pin_1 = [ArduinoBoard.digital[2]]
-    stim_pin_2 = [ArduinoBoard.digital[3]]
-    stim_pin_3 = [ArduinoBoard.digital[4]]
-    stim_pin_4 = [ArduinoBoard.digital[5]]
-    stim_pin_5 = [ArduinoBoard.digital[6]]
-    stim_pin_6 = [ArduinoBoard.digital[7]]
-    stim_pin_7 = [ArduinoBoard.digital[8]]
-    stim_pin_8 = [ArduinoBoard.digital[9]]
-    stim_pin_9 = [ArduinoBoard.digital[2], ArduinoBoard.digital[9]]
-    stim_pins = [stim_pin_1, stim_pin_2, stim_pin_3, stim_pin_4, stim_pin_5, stim_pin_6, stim_pin_7, stim_pin_8, stim_pin_9]
+    stim_target_pin = [ArduinoBoard.digital[3]]
+    stim_pin = [ArduinoBoard.digital[6]]
+#     stim_pin_1 = [ArduinoBoard.digital[2]]
+#     stim_pin_2 = [ArduinoBoard.digital[3]]
+#     stim_pin_3 = [ArduinoBoard.digital[4]]
+#     stim_pin_4 = [ArduinoBoard.digital[5]]
+#     stim_pin_5 = [ArduinoBoard.digital[6]]
+#     stim_pin_6 = [ArduinoBoard.digital[7]]
+#     stim_pin_7 = [ArduinoBoard.digital[8]]
+#     stim_pin_8 = [ArduinoBoard.digital[9]]
+#     stim_pin_9 = [ArduinoBoard.digital[2], ArduinoBoard.digital[9]]
+#     stim_pins = [stim_pin_1, stim_pin_2, stim_pin_3, stim_pin_4, stim_pin_5, stim_pin_6, stim_pin_7, stim_pin_8, stim_pin_9]
 
     
     def eeg_trigger(pins):
@@ -234,7 +236,7 @@ def make_interval_array(T, minInterval, maxInterval):
         interval_array = np.append(interval_array, nextInterval)
     return interval_array[:-1]
     
-def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, practice=False, 
+def sart(blocks, win = win, monitor="testMonitor", reps=reps, omitNum=3, practice=False, 
          path="", fixed=True, partInfo = partInfo):
     """ SART Task.
     
@@ -255,6 +257,9 @@ def sart(win = win, monitor="testMonitor", blocks=1, reps=reps, omitNum=3, pract
     fileName = "SART_" + str(partInfo[0]) + ".csv"
     outFile = open(path + fileName, "w")
     sart_init_inst(win, omitNum)
+    mw_task_inst(win)
+    probe_task_inst(win)
+    probe_warning_task_inst(win)
     if practice == True:
         sart_prac_inst(win, omitNum)
         mainResultList.extend(sart_block(win, fb=True, omitNum=omitNum, 
@@ -291,8 +296,7 @@ def sart_init_inst(win, omitNum, eeg = eeg):
                                       " space bar or any other key.\n\n" +
                                       "Please give equal importance to both" +
                                       " accuracy and speed while doing this" + 
-                                      " task.\n\nPress the b key when you" +
-                                      " are ready to start."), 
+                                      " task.\n\nPress the b key to continue."), 
                            color="white", height=0.7, pos=(0, 0))
     event.clearEvents()
     if eeg == True:
@@ -315,6 +319,30 @@ def sart_prac_inst(win, omitNum):
         inst.draw()
         win.flip()
         
+def mw_task_inst(win):
+    inst = visual.TextStim(win, text=("Try to stay as concentrated on the task as you can throughout the entire experiment. It is however, not unusual for your thoughts to start wandering.\nAt some point, you will be interrupted to answer the questions on the screen relative to your mind-wandering.\n\nPress the b key to continue."), 
+                           color="white", height=0.7, pos=(0, 0))
+    event.clearEvents()
+    while 'b' not in event.getKeys():
+        inst.draw()
+        win.flip()
+    
+def probe_task_inst(win):
+    inst = visual.TextStim(win, text=("The first question will ask you to evaluate your state of mind prior to the appearance of the question. You will have to choose a score on the scale of 1 ('completely on-task') to 4 ('completely off-task'). Next, you will be asked whether you intentionally tried to concentrate or not. Finally, you will be asked to evaluate the degree of confidence of your answers on the scale of 1 to 4.\n\nPress the b key to continue."), 
+                           color="white", height=0.7, pos=(0, 0))
+    event.clearEvents()
+    while 'b' not in event.getKeys():
+        inst.draw()
+        win.flip()
+
+def probe_warning_task_inst(win):
+    inst = visual.TextStim(win, text=("It is important to note that there are no right or wrong answers, and they have no consequences, so please answer as truthfully as possible.\n\nPress the b key to continue."), 
+                           color="white", height=0.7, pos=(0, 0))
+    event.clearEvents()
+    while 'b' not in event.getKeys():
+        inst.draw()
+        win.flip()
+
 def sart_act_task_inst(win):
     inst = visual.TextStim(win, text=("We will now start the actual task.\n" +
                                       "\nRemember, give equal importance to" +
@@ -407,8 +435,6 @@ def sart_block(win, fb, omitNum, reps, bNum, fixed, probe_trials, stimulation = 
                     rTMS_Thread = threading.Thread(target=rTMS, args=(TMS_device, pulse_intervals[rTMS_interval_index], add_experiment_time, TMS_output, partInfo[0], TMS_end_time_queue))
                     rTMS_Thread.start() 
                 rTMS_interval_index += 1
-        if eeg == True:
-            eeg_trigger(stimulus_pins[tNum])
         ntrial += 1
         tNum += 1
         resultList.append(sart_trial(win, fb, omitNum, xStim, circleStim,
@@ -437,18 +463,23 @@ def sart_trial(win, fb, omitNum, xStim, circleStim, numStim, correctStim,
     numStim.setHeight(fontSize)
     numStim.setText(number)
     numStim.draw()
+    if eeg == True:
+        if number == 3:
+            eeg_trigger(stim_target_pin)
+        else:
+            eeg_trigger(stim_pin)
     event.clearEvents()
     clock.reset()
     stimStartTime = time.process_time()
     win.flip()
     xStim.draw()
     circleStim.draw()
+    if eeg == True:
+        eeg_trigger(cross_pin)
     waitTime = .25 - (time.process_time() - stimStartTime)
     core.wait(waitTime, hogCPUperiod=waitTime)
     maskStartTime = time.process_time()
     win.flip()
-    if eeg == True:
-        eeg_trigger(cross_pin)
     waitTime = 0.9 - (time.process_time() - maskStartTime)
     core.wait(waitTime, hogCPUperiod=waitTime)
     win.flip()
@@ -493,8 +524,8 @@ def show_probe(probe, probe_keys, eeg = eeg):
 		win.flip()
 		keys=event.getKeys()
 		if len(set(keys) & set(probe_keys))>0:
-		    if eeg == True:
-		        if "1" in keys:
+			if eeg == True:
+				if "1" in keys:
 					eeg_trigger(probe_response_pin_1)
 				elif "2" in keys:
 					eeg_trigger(probe_response_pin_2)
@@ -588,7 +619,7 @@ probe_confidence=LikertScale(win, 4,
 	scale_labels=["Not at all confident", "", "", "Very confident"])
 
 def main():
-    sart()
+    sart(blocks = 1)
 
 if __name__ == "__main__":
     main()
